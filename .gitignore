@@ -1,6 +1,9 @@
+error_log
 /node_modules
 /public/hot
 /public/storage
+/public/iiif/
+/public/error_log
 /storage/*.key
 /storage/iiif/*
 /vendor

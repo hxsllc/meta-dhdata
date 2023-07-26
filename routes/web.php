@@ -19,6 +19,8 @@ Route::get('/', function () {
 
 Route::get('/dashboard', \App\Http\Controllers\DashboardController::class)->middleware(['auth'])->name('dashboard');
 Route::get('/manifest/{identifier}.json', \App\Http\Controllers\ManifestGeneratorController::class)->name('manifest.generate');
+Route::get('/records/{record}/export', [\App\Http\Controllers\RecordController::class, 'exportManifest']);
+Route::post('/metaimages', [\App\Http\Controllers\MetaImageController::class, 'store'])->name('metaimages.store');
 
 Route::group(['middleware' => ['auth']], function () {
     Route::get('/records', [\App\Http\Controllers\RecordController::class, 'index'])->name('records.index');
