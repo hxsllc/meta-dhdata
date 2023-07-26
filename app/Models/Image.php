@@ -9,6 +9,10 @@ class Image extends Model
 {
     use HasFactory;
 
+    protected $connection = 'slu';
+    
+    public $timestamps = false;
+
     protected $table = "metadata_images";
 
     public function getFrameAttribute()

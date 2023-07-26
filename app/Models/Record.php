@@ -224,7 +224,8 @@ class Record extends Model
         $manifest = [];
         $manifest["@context"] = "http://iiif.io/api/presentation/2/context.json";
         // $manifest["@id"] = url('/manifest/') . "/" . $record->mFolderNumber . ".json";
-        $manifest["@id"] = Storage::disk('manifests')->url("/VFL_" . $record->mFolderNumber . ".json");
+        //$manifest["@id"] = Storage::disk('manifests')->url("/VFL_" . $record->mFolderNumber . ".json");
+        $manifest["@id"] = "https://data.metascripta.org/iiif/VFL_" . $record->mFolderNumber . ".json";
         $manifest["@type"] = "sc:Manifest";
         $manifest["label"] = "Saint Louis University, " . $record->mCollection . " " . $record->mCodexNumberNew;
         $manifest["license"] = "https://creativecommons.org/publicdomain/zero/1.0/";
