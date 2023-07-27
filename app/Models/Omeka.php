@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Support\Facades\Http;
+use NumberFormatter;
 
 class Omeka
 {
@@ -21,20 +22,14 @@ class Omeka
         // Check if item exists
         $items = $this->search($record->mFolderNumber);
         // TODO: This doesn't work going from my virtual machine to Laragon. I'll probably need to set up Omeka on Forge.
-        if(count($items) > 0){
-            $response = Http::withOptions([
-                'stream' => true,
-                'version' => '1.0',
-            ])
-                ->withBody($this->getItemTemplate($record))
-                ->put('http://metascripta.test/api/items?key_identity=' . config('omeka.key') . '&key_credential=' . config('omeka.secret'));
-        }else{
-            $response = Http::withOptions([
-                'stream' => true,
-                'version' => '1.0',
-            ])
-                ->withBody($this->getItemTemplate($record))
-                ->post('http://metascripta.test/api/items?key_identity=' . config('omeka.key') . '&key_credential=' . config('omeka.secret'));
+        if (count($items) > 0) {
+            $id = $items[0]['o:id'];
+
+            $response = Http::withBody($this->getItemTemplate($record), 'application/json')
+                ->put(config('omeka.url') . '/api/items/' . $id . '?key_identity=' . config('omeka.key') . '&key_credential=' . config('omeka.secret'));
+        } else {
+            $response = Http::withBody($this->getItemTemplate($record), 'application/json')
+                ->post(config('omeka.url') . '/api/items?key_identity=' . config('omeka.key') . '&key_credential=' . config('omeka.secret'));
         }
 
         return true;
@@ -45,20 +40,27 @@ class Omeka
      */
     public function search($identifier)
     {
-        return Http::withOptions([
-            'stream' => true,
-            'version' => '1.0',
-        ])->get('http://metascripta.test/api/items?fulltext_search=&property[0][joiner]=and&property[0][property]=10&property[0][type]=eq&resource_class_id[]=&item_set_id[]=&submit=Search&property[0][text]=' . $identifier);
+        $response = Http::get(config('omeka.url') . '/api/items?fulltext_search=&property[0][joiner]=and&property[0][property]=10&property[0][type]=eq&resource_class_id[]=&item_set_id[]=&submit=Search&property[0][text]=' . $identifier);
+
+        return json_decode($response->body(), true);
     }
+
+    public static function getCenturyFromYearRange($date)
+    {
+        $year = intval(substr($date, 0, 4));
+        $century = (int) ($year / 100) + 1;
+        $nf = new NumberFormatter('en_US', NumberFormatter::ORDINAL);
+        return $nf->format($century);
+    }
+
 
     public function getItemTemplate(Record $record)
     {
-        return [
-            "@context" => "http://metascripta.test/api-context",
+        $payload = [
             "@type" => "o:Item",
             "o:is_public" => true,
             /*"o:owner" => [
-                "@id" => "http://metascripta.test/api/users/" . config('omeka.owner'),
+                "@id" => config('omeka.url') . "/api/users/" . config('omeka.owner'),
                 "o:id" => config('omeka.owner')
             ],*/
             "o:resource_class" => null,
@@ -67,7 +69,7 @@ class Omeka
             "o:item_set" => [],
             "o:site" => [
                 [
-                    "@id" => "http://metascripta.test/api/sites/" . config('omeka.site'),
+                    "@id" => config('omeka.url') . "/api/sites/" . config('omeka.site'),
                     "o:id" => config('omeka.site')
                 ]
             ],
@@ -80,13 +82,22 @@ class Omeka
                     "@value" => $record->mCollection . " " . $record->mCodexNumberNew
                 ]
             ],
-            "dcterms:publisher" => [
+            "dcterms:alternative" => [
                 [
                     "type" => "literal",
-                    "property_id" => 5,
-                    "property_label" => "Publisher",
+                    "property_id" => 17,
+                    "property_label" => "Alternative Title",
                     "is_public" => true,
-                    "@value" => "Saint Louis University Libraries"
+                    "@value" => $record->mCodexNumberNew
+                ]
+            ],
+            "dcterms:hasPart" => [
+                [
+                    "type" => "literal",
+                    "property_id" => 34,
+                    "property_label" => "Has Part",
+                    "is_public" => true,
+                    "@value" => $record->part
                 ]
             ],
             "dcterms:date" => [
@@ -96,6 +107,60 @@ class Omeka
                     "property_label" => "Date",
                     "is_public" => true,
                     "@value" => $record->mCentury
+                ]
+            ],
+            "dcterms:temporal" => [
+                [
+                    "type" => "literal",
+                    "property_id" => 41,
+                    "property_label" => "Temporal Coverage",
+                    "is_public" => true,
+                    "@value" => self::getCenturyFromYearRange($record->mCentury)
+                ]
+            ],
+            "dcterms:coverage" => [
+                [
+                    "type" => "literal",
+                    "property_id" => 14,
+                    "property_label" => "Coverage",
+                    "is_public" => true,
+                    "@value" => $record->mCountry
+                ]
+            ],
+            "dcterms:language" => [
+                [
+                    "type" => "literal",
+                    "property_id" => 12,
+                    "property_label" => "Language",
+                    "is_public" => true,
+                    "@value" => $record->mLanguage
+                ]
+            ],
+            "dcterms:bibliographicCitation" => [
+                [
+                    "type" => "literal",
+                    "property_id" => 48,
+                    "property_label" => "Bibliographic Citation",
+                    "is_public" => true,
+                    "@value" => $record->mTextReference,
+                ]
+            ],
+            "dcterms:hasFormat" => [
+                [
+                    "type" => "literal",
+                    "property_id" => 38,
+                    "property_label" => "Has Format",
+                    "is_public" => true,
+                    "@value" => "https://data.metascripta.org/iiif/VFL_" . $record->mFolderNumber . ".json"
+                ]
+            ],
+            "dcterms:hasVersion" => [
+                [
+                    "type" => "literal",
+                    "property_id" => 28,
+                    "property_label" => "Has Version",
+                    "is_public" => true,
+                    "@value" => "https://metascripta-01.s3.amazonaws.com/" . $record->mFolderNumber . ".pdf"
                 ]
             ],
             "dcterms:identifier" => [
@@ -116,22 +181,22 @@ class Omeka
                     "@value" => $record->roll
                 ]
             ],
-            "dcterms:language" => [
+            "dcterms:created" => [
                 [
                     "type" => "literal",
-                    "property_id" => 12,
-                    "property_label" => "Language",
+                    "property_id" => 20,
+                    "property_label" => "Date Created",
                     "is_public" => true,
-                    "@value" => $record->mLanguage
+                    "@value" => $record->mDateDigitized
                 ]
             ],
-            "dcterms:coverage" => [
+            "dcterms:publisher" => [
                 [
                     "type" => "literal",
-                    "property_id" => 14,
-                    "property_label" => "Coverage",
+                    "property_id" => 5,
+                    "property_label" => "Publisher",
                     "is_public" => true,
-                    "@value" => $record->mCountry
+                    "@value" => "Saint Louis University Libraries"
                 ]
             ],
             "dcterms:rights" => [
@@ -143,24 +208,6 @@ class Omeka
                     "@value" => "CC0 1.0 Universal"
                 ]
             ],
-            "dcterms:alternative" => [
-                [
-                    "type" => "literal",
-                    "property_id" => 17,
-                    "property_label" => "Alternative Title",
-                    "is_public" => true,
-                    "@value" => $record->mCodexNumberNew
-                ]
-            ],
-            "dcterms:created" => [
-                [
-                    "type" => "literal",
-                    "property_id" => 20,
-                    "property_label" => "Date Created",
-                    "is_public" => true,
-                    "@value" => $record->mDateDigitized
-                ]
-            ],
             "dcterms:isPartOf" => [
                 [
                     "type" => "literal",
@@ -169,43 +216,9 @@ class Omeka
                     "is_public" => true,
                     "@value" => $record->mCollection
                 ]
-            ],
-            "dcterms:hasPart" => [
-                [
-                    "type" => "literal",
-                    "property_id" => 34,
-                    "property_label" => "Has Part",
-                    "is_public" => true,
-                    "@value" => $record->part
-                ]
-            ],
-            "dcterms:hasFormat" => [
-                [
-                    "type" => "literal",
-                    "property_id" => 38,
-                    "property_label" => "Has Format",
-                    "is_public" => true,
-                    "@value" => "https://metascripta.org/iiif/VFL_" . $record->mFolderNumber . ".json"
-                ]
-            ],
-            /*"dcterms:temporal" => [
-                [
-                    "type" => "literal",
-                    "property_id" => 41,
-                    "property_label" => "Temporal Coverage",
-                    "is_public" => true,
-                    "@value" => "15th"
-                ]
-            ],*/
-            "dcterms:bibliographicCitation" => [
-                [
-                    "type" => "literal",
-                    "property_id" => 48,
-                    "property_label" => "Bibliographic Citation",
-                    "is_public" => true,
-                    "@value" => $record->mTextReference,
-                ]
             ]
         ];
+
+        return json_encode($payload);
     }
 }
